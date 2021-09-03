@@ -1,14 +1,19 @@
 from BlockChain import CBlock
 from Signatures import generate_keys, sign, verify
 from Transaction import Tx
+from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives import serialization
 import pickle
+import random
 import time
 reward = 25.0
+leading_zeros = 2
+next_char_limit = 20
 
 
 class TxBlock(CBlock):
     nonce = "AAAAAA"
+
     def __init__(self, previousBlock):
         super(TxBlock, self).__init__([], previousBlock)
 
@@ -35,10 +40,24 @@ class TxBlock(CBlock):
         if total_out - total_in - reward > 0.000000000001:
             return False
         return True
+
     def good_nonce(self):
-        return False
+        digest = hashes.Hash(hashes.SHA384())
+        digest.update(bytes(str(self.data), 'utf-8'))
+        digest.update(bytes(str(self.previousHash), 'utf-8'))
+        digest.update(bytes(str(self.nonce), 'utf-8'))
+        this_hash = digest.finalize()
+        if this_hash[:leading_zeros] != bytes(''.join(['\x4f' for i in range(leading_zeros)]), 'utf8'):
+            return False
+        return int(this_hash[leading_zeros]) < next_char_limit
+
     def find_nonce(self):
-        return self.nonce
+        for i in range(1000000):
+            self.nonce = ''.join([chr(random.randint(0, 255))
+                                  for i in range(10*leading_zeros)])
+            if self.good_nonce():
+                return self.nonce
+        return None
 
 
 if __name__ == "__main__":
@@ -118,7 +137,7 @@ if __name__ == "__main__":
         print("Success! Nonce is good after save and load!")
     else:
         print("ERROR! Bad nonce after load")
-        
+
     B2 = TxBlock(B1)
     Tx5 = Tx()
     Tx5.add_input(pu3, 1)
